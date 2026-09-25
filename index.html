@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống tra cứu thông tin thí sinh</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 680px; margin: 20px auto; padding: 15px; background-color: #f0f2f5; }
+        .container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #1a73e8; margin-bottom: 20px; text-transform: uppercase; font-size: 20px; }
+        .form-group { margin-bottom: 15px; }
+        input { width: 100%; padding: 14px; box-sizing: border-box; border: 2px solid #dadce0; border-radius: 8px; font-size: 16px; outline: none; }
+        input:focus { border-color: #1a73e8; }
+        button { width: 100%; padding: 14px; background-color: #1a73e8; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; text-transform: uppercase; }
+        button:hover { background-color: #1557b0; }
+        
+        #resultCard { margin-top: 25px; border: 1px solid #dadce0; border-radius: 8px; display: none; background: #ffffff; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .card-body { display: flex; flex-direction: row; padding: 20px; align-items: center; justify-content: space-between; gap: 15px; }
+        
+        @media (max-width: 500px) {
+            .card-body { flex-direction: column; align-items: stretch; text-align: left; }
+            .qr-section { border-left: none !important; border-top: 2px dashed #e8eaed; padding-left: 0 !important; padding-top: 20px; min-width: 100% !important; }
+        }
+
+        .info-section { flex: 1; font-size: 15px; color: #3c4043; line-height: 1.8; }
+        .info-section p { margin: 6px 0; }
+        
+        .qr-section { display: flex; flex-direction: column; align-items: center; justify-content: center; border-left: 2px dashed #e8eaed; padding-left: 20px; min-width: 170px; }
+        .qr-name { font-size: 14px; font-weight: bold; margin-bottom: 2px; text-align: center; color: #202124; text-transform: uppercase; }
+        .qr-cccd { font-size: 12px; color: #5f6368; margin-bottom: 6px; text-align: center; }
+        .qr-warning { font-size: 11px; color: #d93025; font-weight: bold; text-align: center; margin-bottom: 10px; max-width: 170px; line-height: 1.4; }
+        .qr-image-style { width: 140px; height: 140px; object-fit: contain; display: block; margin: 0 auto; padding: 6px; background: white; border: 1px solid #ddd; border-radius: 4px; }
+        
+        .alert-info { margin-top: 20px; padding: 12px; background-color: #e8f0fe; color: #1a73e8; border: 1px solid #d2e3fc; border-radius: 8px; display: none; text-align: center; font-weight: 500; }
+        .alert-error { margin-top: 20px; padding: 12px; background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; border-radius: 8px; display: none; text-align: center; font-weight: 500; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>HỆ THỐNG TRA CỨU THÍ SINH</h2>
+    
+    <div id="searchControls">
+        <div class="form-group">
+            <input type="text" id="cccdInput" placeholder="Nhập số căn cước công dân để tra cứu...">
+        </div>
+        <button onclick="traCuuThongTin()">TÌM KIẾM THÔNG TIN</button>
+    </div>
+
+    <div id="statusAlert" class="alert-info">Đang truy vấn dữ liệu hệ thống...</div>
+    <div id="errorAlert" class="alert-error"></div>
+
+    <div id="resultCard">
+        <div class="card-body">
+            <div class="info-section">
+                <p><strong>Họ tên thí sinh:</strong> <span id="txtHoTen"></span></p>
+                <p><strong>Ngày sinh:</strong> <span id="txtNgaySinh"></span></p>
+                <p><strong>Số căn cước:</strong> <span id="txtCCCD"></span></p>
+                <p><strong>Hạng GPLX:</strong> <span id="txtGPLX"></span></p>
+                <p><strong>Số tiền:</strong> <span id="txtSoTien"></span> VNĐ</p>
+            </div>
+            
+            <div class="qr-section">
+                <div class="qr-name" id="qrName"></div>
+                <div class="qr-cccd">CCCD: <span id="qrCccdText"></span></div>
+                <div class="qr-warning">Hãy nhìn kỹ đúng tên và căn cước của mình mới đóng tiền</div>
+                <div id="qrContainer"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function traCuuThongTin() {
+        var cccdInput = document.getElementById('cccdInput');
+        var card = document.getElementById('resultCard');
+        var errorAlert = document.getElementById('errorAlert');
+        var statusAlert = document.getElementById('statusAlert');
+        
+        card.style.display = "none";
+        errorAlert.style.display = "none";
+        
+        if (!cccdInput || cccdInput.value.trim() === "") {
+            errorAlert.innerHTML = "Vui lòng nhập số căn cước công dân trước!";
+            errorAlert.style.display = "block";
+            return;
+        }
+
+        var cccd = cccdInput.value.trim();
+        statusAlert.style.display = "block";
+        var cacheToken = new Date().getTime();
+
+        // Đọc trực tiếp tệp data.json kết hợp token phá khóa cache
+        fetch('data.json?v=' + cacheToken)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                statusAlert.style.display = "none";
+                
+                if (data && data[cccd]) {
+                    var ts = data[cccd];
+                    
+                    document.getElementById('txtHoTen').innerText = ts.hoTen;
+                    document.getElementById('txtNgaySinh').innerText = ts.ngaySinh;
+                    document.getElementById('txtCCCD').innerText = ts.cccd;
+                    document.getElementById('txtGPLX').innerText = ts.hangGPLX;
+                    document.getElementById('txtSoTien').innerText = ts.soTien;
+                    
+                    document.getElementById('qrName').innerText = ts.hoTen;
+                    document.getElementById('qrCccdText').innerText = ts.cccd;
+                    
+                    var cleanCccd = String(ts.cccd).trim();
+                    var localImgUrl = "anh-qr/" + cleanCccd + ".png?v=" + cacheToken;
+                    
+                    document.getElementById('qrContainer').innerHTML = '<img src="' + localImgUrl + '" class="qr-image-style" onerror="this.onerror=null; this.src=\'https://placehold.co\';" alt="Mã QR Gốc">';
+
+                    card.style.display = "block";
+                } else {
+                    errorAlert.innerHTML = "Không tìm thấy thông tin trùng khớp với số căn cước này!";
+                    errorAlert.style.display = "block";
+                }
+            })
+            .catch(function(error) {
+                console.error(error);
+                statusAlert.style.display = "none";
+                errorAlert.innerHTML = "Không tìm thấy dữ liệu tra cứu. Vui lòng thử lại sau.";
+                errorAlert.style.display = "block";
+            });
+    }
+</script>
+</body>
+</html>
